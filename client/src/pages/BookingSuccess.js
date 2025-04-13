@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -9,55 +9,19 @@ import {
   Grid,
   Divider,
   Alert,
-  CircularProgress,
 } from '@mui/material';
 import { CheckCircle as CheckCircleIcon } from '@mui/icons-material';
-import axios from 'axios';
 import { format } from 'date-fns';
 
 const BookingSuccess = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [booking, setBooking] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const booking = location.state?.booking;
 
-  useEffect(() => {
-    const fetchBookingDetails = async () => {
-      try {
-        const searchParams = new URLSearchParams(location.search);
-        const paymentIntentId = searchParams.get('payment_intent');
-        const bookingId = searchParams.get('booking_id');
-
-        if (!paymentIntentId || !bookingId) {
-          throw new Error('Invalid booking confirmation');
-        }
-
-        const response = await axios.get(`/api/bookings/${bookingId}`);
-        setBooking(response.data);
-      } catch (error) {
-        setError('Error fetching booking details');
-        console.error('Error:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchBookingDetails();
-  }, [location.search]);
-
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  if (error || !booking) {
+  if (!booking) {
     return (
       <Container sx={{ py: 4 }}>
-        <Alert severity="error">{error || 'Booking not found'}</Alert>
+        <Alert severity="error">Invalid booking confirmation</Alert>
         <Button
           variant="contained"
           onClick={() => navigate('/')}
@@ -92,9 +56,6 @@ const BookingSuccess = () => {
             </Typography>
             <Box sx={{ mb: 2 }}>
               <Typography variant="body1">
-                <strong>Booking ID:</strong> {booking._id}
-              </Typography>
-              <Typography variant="body1">
                 <strong>Car:</strong> {booking.car.make} {booking.car.model}
               </Typography>
               <Typography variant="body1">
@@ -120,7 +81,7 @@ const BookingSuccess = () => {
             </Typography>
             <Box sx={{ mb: 2 }}>
               <Typography variant="body1">
-                <strong>Total Amount:</strong> ${booking.totalAmount}
+                <strong>Total Amount:</strong> ${booking.totalPrice}
               </Typography>
               <Typography variant="body1">
                 <strong>Payment Method:</strong> {booking.paymentMethod}

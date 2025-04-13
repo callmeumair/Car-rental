@@ -19,16 +19,31 @@ import {
   Alert,
   CircularProgress,
   Grid,
+  Card,
+  CardContent,
 } from '@mui/material';
 import {
   PaymentElement,
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js';
-import axios from 'axios';
 import { format } from 'date-fns';
 
 const steps = ['Personal Details', 'Booking Details', 'Payment'];
+
+// Mock car data
+const mockCar = {
+  _id: '1',
+  make: 'Toyota',
+  model: 'Camry',
+  year: 2023,
+  type: 'Sedan',
+  transmission: 'Automatic',
+  seats: 5,
+  pricePerDay: 50,
+  location: 'New York',
+  image: 'https://example.com/car.jpg',
+};
 
 const Booking = () => {
   const { carId } = useParams();
@@ -37,8 +52,7 @@ const Booking = () => {
   const stripe = useStripe();
   const elements = useElements();
   const [activeStep, setActiveStep] = useState(0);
-  const [car, setCar] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [bookingData, setBookingData] = useState({
     firstName: '',
@@ -55,26 +69,23 @@ const Booking = () => {
     paymentMethod: 'credit_card',
   });
 
-  useEffect(() => {
-    const fetchCarDetails = async () => {
-      try {
-        const response = await axios.get(`/api/cars/${carId}`);
-        setCar(response.data);
-        setBookingData((prev) => ({
-          ...prev,
-          pickupLocation: response.data.location,
-          dropoffLocation: response.data.location,
-        }));
-      } catch (error) {
-        setError('Error fetching car details');
-        console.error('Error:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCarDetails();
-  }, [carId]);
+  // Calculate total price
+  const calculateTotalPrice = () => {
+    if (!bookingData.startDate || !bookingData.endDate) return 0;
+    
+    const start = new Date(bookingData.startDate);
+    const end = new Date(bookingData.endDate);
+    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    
+    let total = mockCar.pricePerDay * days;
+    
+    if (bookingData.insurance) {
+      const insuranceCost = bookingData.insuranceType === 'premium' ? 20 : 10;
+      total += insuranceCost * days;
+    }
+    
+    return total;
+  };
 
   const handleNext = () => {
     setActiveStep((prevStep) => prevStep + 1);
@@ -100,68 +111,32 @@ const Booking = () => {
     }
 
     try {
-      // First create the booking
-      const bookingResponse = await axios.post('/api/bookings', {
-        car: carId,
-        ...bookingData,
+      setLoading(true);
+      
+      // Mock payment processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Mock successful payment
+      navigate('/booking-success', {
+        state: {
+          booking: {
+            ...bookingData,
+            car: mockCar,
+            totalPrice: calculateTotalPrice(),
+            status: 'confirmed',
+            paymentStatus: 'paid',
+          }
+        }
       });
-
-      // Then create payment intent with the booking ID
-      const paymentResponse = await axios.post('/api/payments/create-payment-intent', {
-        bookingId: bookingResponse.data._id,
-      });
-
-      const { error: submitError } = await elements.submit();
-      if (submitError) {
-        setError(submitError.message);
-        return;
-      }
-
-      const { error: confirmError } = await stripe.confirmPayment({
-        elements,
-        confirmParams: {
-          return_url: `${window.location.origin}/booking-success?booking_id=${bookingResponse.data._id}`,
-        },
-      });
-
-      if (confirmError) {
-        setError(confirmError.message);
-      }
     } catch (error) {
       setError('Payment failed. Please try again.');
       console.error('Error:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleBookingSubmit = async () => {
-    try {
-      const response = await axios.post('/api/bookings', {
-        car: carId,
-        ...bookingData,
-      });
-      setBookingData((prev) => ({ ...prev, _id: response.data._id }));
-      handleNext();
-    } catch (error) {
-      setError('Error creating booking');
-      console.error('Error:', error);
-    }
-  };
-
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  if (error || !car) {
-    return (
-      <Container sx={{ py: 4 }}>
-        <Alert severity="error">{error || 'Car not found'}</Alert>
-      </Container>
-    );
-  }
+  const totalPrice = calculateTotalPrice();
 
   return (
     <Container sx={{ py: 4 }}>
@@ -329,37 +304,51 @@ const Booking = () => {
             <Typography variant="h6" gutterBottom>
               Payment Details
             </Typography>
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="body1">
-                Car: {car.make} {car.model}
-              </Typography>
-              <Typography variant="body1">
-                Rental Period: {format(new Date(bookingData.startDate), 'MMM d, yyyy')} -{' '}
-                {format(new Date(bookingData.endDate), 'MMM d, yyyy')}
-              </Typography>
-              <Typography variant="body1">
-                Base Price: ${car.pricePerDay}/day
-              </Typography>
-              {bookingData.insurance && (
-                <Typography variant="body1">
-                  Insurance: ${bookingData.insuranceType === 'premium' ? '20' : '10'}/day
+            <Card sx={{ mb: 3 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Booking Summary
                 </Typography>
-              )}
-            </Box>
+                <Typography variant="body1">
+                  Car: {mockCar.make} {mockCar.model}
+                </Typography>
+                <Typography variant="body1">
+                  Rental Period: {format(new Date(bookingData.startDate), 'MMM d, yyyy')} -{' '}
+                  {format(new Date(bookingData.endDate), 'MMM d, yyyy')}
+                </Typography>
+                <Typography variant="body1">
+                  Base Price: ${mockCar.pricePerDay}/day
+                </Typography>
+                {bookingData.insurance && (
+                  <Typography variant="body1">
+                    Insurance: ${bookingData.insuranceType === 'premium' ? '20' : '10'}/day
+                  </Typography>
+                )}
+                <Typography variant="h6" sx={{ mt: 2 }}>
+                  Total: ${totalPrice}
+                </Typography>
+              </CardContent>
+            </Card>
             <form onSubmit={handlePaymentSubmit}>
               <PaymentElement />
               <Box sx={{ mt: 3 }}>
                 <Button
                   variant="contained"
                   type="submit"
-                  disabled={!stripe}
+                  disabled={!stripe || loading}
                   fullWidth
                 >
-                  Pay Now
+                  {loading ? 'Processing...' : 'Pay Now'}
                 </Button>
               </Box>
             </form>
           </Box>
+        )}
+
+        {error && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {error}
+          </Alert>
         )}
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
@@ -372,7 +361,7 @@ const Booking = () => {
           {activeStep === steps.length - 1 ? null : (
             <Button
               variant="contained"
-              onClick={activeStep === 1 ? handleBookingSubmit : handleNext}
+              onClick={handleNext}
               disabled={
                 (activeStep === 0 &&
                   (!bookingData.firstName ||
@@ -387,7 +376,7 @@ const Booking = () => {
                     !bookingData.dropoffLocation))
               }
             >
-              {activeStep === 1 ? 'Proceed to Payment' : 'Next'}
+              Next
             </Button>
           )}
         </Box>
