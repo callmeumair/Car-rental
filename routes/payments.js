@@ -8,6 +8,10 @@ router.post('/create-payment-intent', async (req, res) => {
   try {
     const { bookingId } = req.body;
 
+    if (!bookingId) {
+      return res.status(400).json({ message: 'Booking ID is required' });
+    }
+
     const booking = await Booking.findById(bookingId)
       .populate('car', 'pricePerDay');
 
@@ -17,6 +21,10 @@ router.post('/create-payment-intent', async (req, res) => {
 
     // Calculate total amount in cents
     const amount = Math.round(booking.totalPrice * 100);
+
+    if (amount <= 0) {
+      return res.status(400).json({ message: 'Invalid amount' });
+    }
 
     // Create payment intent
     const paymentIntent = await stripe.paymentIntents.create({
@@ -31,7 +39,7 @@ router.post('/create-payment-intent', async (req, res) => {
       clientSecret: paymentIntent.client_secret,
     });
   } catch (error) {
-    console.error(error);
+    console.error('Payment intent error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

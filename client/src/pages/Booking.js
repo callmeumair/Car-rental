@@ -100,9 +100,15 @@ const Booking = () => {
     }
 
     try {
-      // Create payment intent
-      const response = await axios.post('/api/payments/create-payment-intent', {
-        bookingId: bookingData._id,
+      // First create the booking
+      const bookingResponse = await axios.post('/api/bookings', {
+        car: carId,
+        ...bookingData,
+      });
+
+      // Then create payment intent with the booking ID
+      const paymentResponse = await axios.post('/api/payments/create-payment-intent', {
+        bookingId: bookingResponse.data._id,
       });
 
       const { error: submitError } = await elements.submit();
@@ -114,7 +120,7 @@ const Booking = () => {
       const { error: confirmError } = await stripe.confirmPayment({
         elements,
         confirmParams: {
-          return_url: `${window.location.origin}/booking-success`,
+          return_url: `${window.location.origin}/booking-success?booking_id=${bookingResponse.data._id}`,
         },
       });
 
